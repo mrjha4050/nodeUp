@@ -1,0 +1,90 @@
+{
+  "manifest_version": "0.4",
+  "name": "job-aggregator-mcp",
+  "display_name": "Job Aggregator MCP",
+  "version": "0.1.0",
+  "description": "Search LinkedIn & Indeed jobs from any AI assistant. Browser-based scraping — no API keys needed.",
+  "long_description": "A production-grade MCP server that aggregates job listings from LinkedIn and Indeed. Uses browser-based scraping via Patchright (stealth Playwright) so no API keys are required. Supports filters for location, job type, experience level, remote/onsite, and skills. Results are deduplicated across providers.",
+  "author": {
+    "name": "Naman Jha"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/mcp"
+  },
+  "server": {
+    "type": "uv",
+    "entry_point": "src/job_aggregator/server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory", "${__dirname}",
+        "job-aggregator"
+      ]
+    }
+  },
+  "tools": [
+    {
+      "name": "search_jobs",
+      "description": "Search for jobs across LinkedIn and Indeed with filters (query, location, job_type, experience_level, location_type, skills)"
+    },
+    {
+      "name": "get_job_details",
+      "description": "Get full details for a specific job by its provider-prefixed ID"
+    },
+    {
+      "name": "health_check",
+      "description": "Check server status and which job providers are online"
+    },
+    {
+      "name": "get_server_config",
+      "description": "View current server configuration (non-sensitive fields)"
+    }
+  ],
+  "user_config": {
+    "linkedin_browser_headless": {
+      "type": "boolean",
+      "title": "Run Browser Headless",
+      "description": "Run the LinkedIn scraping browser in headless mode (recommended)",
+      "default": true,
+      "required": false
+    },
+    "linkedin_client_id": {
+      "type": "string",
+      "title": "LinkedIn API Client ID",
+      "description": "Optional — only needed if you have LinkedIn API access",
+      "sensitive": true,
+      "required": false
+    },
+    "linkedin_client_secret": {
+      "type": "string",
+      "title": "LinkedIn API Client Secret",
+      "description": "Optional — only needed if you have LinkedIn API access",
+      "sensitive": true,
+      "required": false
+    },
+    "indeed_api_key": {
+      "type": "string",
+      "title": "Indeed API Key",
+      "description": "Optional — only needed if you have Indeed API access",
+      "sensitive": true,
+      "required": false
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "python": ">=3.12"
+    }
+  },
+  "keywords": [
+    "jobs",
+    "linkedin",
+    "indeed",
+    "job-search",
+    "recruiting",
+    "career"
+  ]
+}

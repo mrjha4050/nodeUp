@@ -1,0 +1,14 @@
+[run]
+source = src/job_aggregator
+omit =
+    src/job_aggregator/providers/linkedin/client.py
+    src/job_aggregator/providers/indeed/client.py
+    src/job_aggregator/db/session.py
+    src/job_aggregator/server.py
+    src/job_aggregator/core/logging.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__
+    \.\.\.
