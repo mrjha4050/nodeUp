@@ -21,14 +21,39 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Read version from manifest
+        id: version
+        run: |
+          VERSION=$(python -c "import json; print(json.load(open('manifest.json'))['version'])")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Build .mcpb bundle
         run: python build_mcpb.py
 
-      - name: Upload .mcpb to release
-        if: github.event_name == 'release'
+      - name: Create or update release with .mcpb
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          body: |
+            ## Job Aggregator MCP Server v${{ steps.version.outputs.version }}
+
+            ### Install
+            Download the `.mcpb` file below and drag it into Claude Desktop.
+
+            Or use `uvx`:
+            ```json
+            {
+              "mcpServers": {
+                "job-aggregator": {
+                  "command": "uvx",
+                  "args": ["--from", "git+https://github.com/${{ github.repository }}", "job-aggregator"]
+                }
+              }
+            }
+            ```
           files: "*.mcpb"
+          make_latest: true
 
       - name: Upload .mcpb as artifact
         uses: actions/upload-artifact@v4
