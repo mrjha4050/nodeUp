@@ -50,30 +50,6 @@ That's it. `uvx` auto-downloads, installs dependencies, and runs the server. No 
 
 ---
 
-## If Published to PyPI (even simpler)
-
-If you publish this package to PyPI (`pip install job-aggregator-mcp`), the config becomes:
-
-```json
-{
-  "mcpServers": {
-    "job-aggregator": {
-      "command": "uvx",
-      "args": ["job-aggregator-mcp"]
-    }
-  }
-}
-```
-
-To publish:
-
-```bash
-uv build
-uv publish
-```
-
----
-
 ## Manual Setup (for development)
 
 If you want to clone and work on the code:
