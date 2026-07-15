@@ -1,4 +1,4 @@
-# Job Aggregator MCP Server
+# NodeUp MCP Server
 
 A production-grade MCP server that aggregates job listings from LinkedIn and Indeed, exposing them as tools for AI assistants. Supports browser-based LinkedIn scraping — no API keys needed.
 
