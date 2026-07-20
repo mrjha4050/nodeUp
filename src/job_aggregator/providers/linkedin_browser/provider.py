@@ -140,6 +140,78 @@ class LinkedInBrowserProvider(JobProvider):
             logger.exception("linkedin_browser_job_detail_unexpected_error", job_id=job_id)
             return None
 
+    async def search_profiles(
+        self,
+        keywords: str,
+        location: str | None = None,
+        network: str | None = None,
+        limit: int = 10,
+    ) -> dict:
+        """Search LinkedIn for people profiles.
+
+        Args:
+            keywords: Search terms, e.g. "machine learning engineer".
+            location: Filter by location.
+            network: Connection degree filter: "first", "second", "third".
+            limit: Max profiles to return.
+        """
+        try:
+            page = await self._browser.ensure_ready()
+            scraper = LinkedInScraper(page, self._settings.navigation_timeout)
+
+            result = await scraper.scrape_people_search(
+                keywords=keywords,
+                location=location,
+                network=network,
+                count=limit,
+            )
+
+            logger.info(
+                "linkedin_browser_profile_search_complete",
+                keywords=keywords,
+                profiles_found=len(result.get("profiles", [])),
+            )
+
+            return {
+                "success": True,
+                "profiles": result.get("profiles", []),
+                "total_results": len(result.get("profiles", [])),
+            }
+
+        except LinkedInBrowserError as exc:
+            logger.error("linkedin_browser_profile_search_failed", error=str(exc))
+            return {"success": False, "profiles": [], "error_message": str(exc)}
+        except Exception as exc:
+            logger.exception("linkedin_browser_profile_search_unexpected_error")
+            return {"success": False, "profiles": [], "error_message": f"Unexpected error: {exc}"}
+
+    async def send_connection(self, profile_url: str, note: str = "") -> dict:
+        """Send a connection request to a LinkedIn profile.
+
+        Args:
+            profile_url: Full LinkedIn profile URL (e.g. https://www.linkedin.com/in/username/).
+            note: Optional personalized message (max 300 chars).
+        """
+        try:
+            page = await self._browser.ensure_ready()
+            scraper = LinkedInScraper(page, self._settings.navigation_timeout)
+
+            result = await scraper.send_connection_request(profile_url, note)
+
+            logger.info(
+                "linkedin_browser_connection_result",
+                profile_url=profile_url,
+                success=result["success"],
+            )
+            return result
+
+        except LinkedInBrowserError as exc:
+            logger.error("linkedin_browser_connection_failed", error=str(exc))
+            return {"success": False, "message": str(exc)}
+        except Exception as exc:
+            logger.exception("linkedin_browser_connection_unexpected_error")
+            return {"success": False, "message": f"Unexpected error: {exc}"}
+
     async def health_check(self) -> bool:
         """Check if the browser is running and authenticated."""
         try:
