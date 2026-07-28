@@ -1,4 +1,4 @@
-# Job Aggregator MCP Server
+# nodeUp
 
 A production-grade MCP server that aggregates job listings from LinkedIn and Indeed, exposing them as tools for AI assistants. Supports browser-based LinkedIn scraping — no API keys needed.
 
@@ -12,10 +12,10 @@ Your friends don't need to clone, create venvs, or install anything. They just n
 
 ```bash
 # Install the browser engine
-uvx --from git+https://github.com/YOUR_USERNAME/mcp job-aggregator --install-browser
+uvx --from git+https://github.com/mrjha4050/nodeUp job-aggregator --install-browser
 
 # Login to LinkedIn (opens a browser window — do this once)
-uvx --from git+https://github.com/YOUR_USERNAME/mcp job-aggregator --login
+uvx --from git+https://github.com/mrjha4050/nodeUp job-aggregator --login
 ```
 
 ### Step 2: Add to your AI client config
@@ -27,7 +27,7 @@ Paste this into your client's config file (see table below):
   "mcpServers": {
     "job-aggregator": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/YOUR_USERNAME/mcp", "job-aggregator"]
+      "args": ["--from", "git+https://github.com/mrjha4050/nodeUp", "job-aggregator"]
     }
   }
 }
@@ -41,7 +41,7 @@ That's it. `uvx` auto-downloads, installs dependencies, and runs the server. No 
 |--------|---------------------|
 | **Claude Desktop** (macOS) | `~/Library/Application Support/Claude/claude_desktop_config.json` |
 | **Claude Desktop** (Windows) | `%APPDATA%\Claude\claude_desktop_config.json` |
-| **Claude Code** | Run: `claude mcp add job-aggregator -- uvx --from git+https://github.com/YOUR_USERNAME/mcp job-aggregator` |
+| **Claude Code** | Run: `claude mcp add job-aggregator -- uvx --from git+https://github.com/mrjha4050/nodeUp job-aggregator` |
 | **Cursor** | `.cursor/mcp.json` in your project, or Settings > MCP Servers |
 | **VS Code (Copilot)** | `.vscode/mcp.json` in your workspace |
 | **Windsurf** | `~/.codeium/windsurf/mcp_config.json` |
@@ -56,7 +56,7 @@ If you want to clone and work on the code:
 
 ```bash
 git clone <your-repo-url>
-cd mcp
+cd nodeUp
 uv venv && uv pip install -e ".[dev]"
 python -m patchright install chromium
 python main.py --login
@@ -68,7 +68,7 @@ Then use local paths in your client config:
 {
   "mcpServers": {
     "job-aggregator": {
-      "command": "/absolute/path/to/mcp/.venv/bin/job-aggregator"
+      "command": "/absolute/path/to/nodeUp/.venv/bin/job-aggregator"
     }
   }
 }
@@ -85,7 +85,7 @@ Then use local paths in your client config:
   "mcpServers": {
     "job-aggregator": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/YOUR_USERNAME/mcp", "job-aggregator"]
+      "args": ["--from", "git+https://github.com/mrjha4050/nodeUp", "job-aggregator"]
     }
   }
 }
@@ -94,7 +94,7 @@ Then use local paths in your client config:
 ### Claude Code
 
 ```bash
-claude mcp add job-aggregator -- uvx --from git+https://github.com/YOUR_USERNAME/mcp job-aggregator
+claude mcp add job-aggregator -- uvx --from git+https://github.com/mrjha4050/nodeUp job-aggregator
 ```
 
 ### Cursor
@@ -106,7 +106,7 @@ Create `.cursor/mcp.json` in your project:
   "mcpServers": {
     "job-aggregator": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/YOUR_USERNAME/mcp", "job-aggregator"]
+      "args": ["--from", "git+https://github.com/mrjha4050/nodeUp", "job-aggregator"]
     }
   }
 }
@@ -121,7 +121,7 @@ Create `.vscode/mcp.json`:
   "servers": {
     "job-aggregator": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/YOUR_USERNAME/mcp", "job-aggregator"]
+      "args": ["--from", "git+https://github.com/mrjha4050/nodeUp", "job-aggregator"]
     }
   }
 }
@@ -136,7 +136,7 @@ Edit `~/.codeium/windsurf/mcp_config.json`:
   "mcpServers": {
     "job-aggregator": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/YOUR_USERNAME/mcp", "job-aggregator"]
+      "args": ["--from", "git+https://github.com/mrjha4050/nodeUp", "job-aggregator"]
     }
   }
 }
@@ -151,7 +151,7 @@ Edit `~/.codex/config.json`:
   "mcpServers": {
     "job-aggregator": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/YOUR_USERNAME/mcp", "job-aggregator"]
+      "args": ["--from", "git+https://github.com/mrjha4050/nodeUp", "job-aggregator"]
     }
   }
 }
@@ -167,14 +167,14 @@ mcpServers:
     command: uvx
     args:
       - --from
-      - git+https://github.com/YOUR_USERNAME/mcp
+      - git+https://github.com/mrjha4050/nodeUp
       - job-aggregator
 ```
 
 ### SSE Transport (any HTTP-based client)
 
 ```bash
-uvx --from git+https://github.com/YOUR_USERNAME/mcp mcp run --transport sse --port 8080 src.job_aggregator.server:mcp
+uvx --from git+https://github.com/mrjha4050/nodeUp mcp run --transport sse --port 8080 src.job_aggregator.server:mcp
 ```
 
 Point your client to `http://localhost:8080/sse`.
@@ -189,6 +189,8 @@ Once connected, your AI assistant has these tools:
 |------|-------------|
 | `search_jobs` | Search jobs across all providers with filters (query, location, job_type, experience_level, location_type, skills) |
 | `get_job_details` | Get full details for a job by ID (e.g., `linkedin_browser_4433918896`) |
+| `search_profiles` | Search LinkedIn people profiles by keywords, location, and network |
+| `send_connection` | Send a LinkedIn connection request with an optional note |
 | `health_check` | Check server status and which providers are online |
 | `get_server_config` | View current server configuration |
 
