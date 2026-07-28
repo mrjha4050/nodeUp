@@ -1,7 +1,7 @@
 {
   "manifest_version": "0.4",
-  "name": "job-aggregator-mcp",
-  "display_name": "Job Aggregator MCP",
+  "name": "nodeUp",
+  "display_name": "nodeUp",
   "version": "0.1.0",
   "description": "Search LinkedIn & Indeed jobs from any AI assistant. Browser-based scraping — no API keys needed.",
   "long_description": "A production-grade MCP server that aggregates job listings from LinkedIn and Indeed. Uses browser-based scraping via Patchright (stealth Playwright) so no API keys are required. Supports filters for location, job type, experience level, remote/onsite, and skills. Results are deduplicated across providers.",
@@ -11,7 +11,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_USERNAME/mcp"
+    "url": "https://github.com/mrjha4050/nodeUp"
   },
   "server": {
     "type": "uv",
@@ -33,6 +33,14 @@
     {
       "name": "get_job_details",
       "description": "Get full details for a specific job by its provider-prefixed ID"
+    },
+    {
+      "name": "search_profiles",
+      "description": "Search LinkedIn for people profiles by keywords, location, and network degree"
+    },
+    {
+      "name": "send_connection",
+      "description": "Send a LinkedIn connection request with an optional personalized note"
     },
     {
       "name": "health_check",

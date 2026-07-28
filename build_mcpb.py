@@ -3,7 +3,7 @@
 Usage:
     python build_mcpb.py
 
-Produces: job-aggregator-mcp-v0.1.0.mcpb
+Produces: nodeUp-v0.1.0.mcpb
 
 A .mcpb file is a ZIP archive containing:
     manifest.json       — server metadata + tool declarations

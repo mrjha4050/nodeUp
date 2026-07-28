@@ -32,6 +32,11 @@ class JobAggregatorService:
         self._registry = registry
         self._dedup = dedup_service or DeduplicationService()
 
+    @property
+    def registry(self) -> ProviderRegistry:
+        """Expose provider registry for direct provider access."""
+        return self._registry
+
     async def search(self, request: SearchRequest) -> SearchResponse:
         """Fan out the search to every registered provider concurrently.
 

@@ -23,7 +23,7 @@ class AppSettings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = Field(default="job-aggregator-mcp")
+    app_name: str = Field(default="nodeUp")
     app_env: Environment = Field(default=Environment.DEVELOPMENT)
     log_level: str = Field(default="INFO")
     version: str = Field(default="0.1.0")

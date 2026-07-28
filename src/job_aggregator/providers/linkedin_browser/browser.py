@@ -16,7 +16,7 @@ from src.job_aggregator.providers.linkedin_browser.exceptions import LinkedInAut
 
 logger = get_logger(__name__)
 
-# Auth barrier indicators in the page URL
+ 
 _AUTH_WALL_PATTERNS = (
     "/login",
     "/checkpoint",

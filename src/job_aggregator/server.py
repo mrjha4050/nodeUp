@@ -14,6 +14,7 @@ from src.job_aggregator.core import get_logger, setup_logging
 from src.job_aggregator.providers.linkedin import LinkedInProvider
 from src.job_aggregator.providers.indeed import IndeedProvider
 from src.job_aggregator.providers.linkedin_browser import LinkedInBrowserProvider
+from src.job_aggregator.providers.indeed_browser import IndeedBrowserProvider
 from src.job_aggregator.providers.registry import ProviderRegistry
 from src.job_aggregator.services.aggregator import JobAggregatorService
 from src.job_aggregator.services.dedup import DeduplicationService
@@ -32,9 +33,12 @@ def create_server() -> FastMCP:
     registry.register(LinkedInProvider())
     registry.register(IndeedProvider())
 
-    # Browser-based LinkedIn provider (no API keys needed)
+    # Browser-based providers (no API keys needed)
     browser_provider = LinkedInBrowserProvider()
     registry.register(browser_provider)
+
+    indeed_browser_provider = IndeedBrowserProvider()
+    registry.register(indeed_browser_provider)
 
     dedup = DeduplicationService()
     service = JobAggregatorService(registry=registry, dedup_service=dedup)

@@ -1,4 +1,4 @@
-"""MCP tools for job search and job details.
+"""MCP tools for job search, job details, profile search, and connections.
 
 These are the tools exposed to MCP clients (e.g. Claude Desktop).
 They validate input, delegate to the service layer, and return
@@ -11,6 +11,7 @@ from mcp.server.fastmcp import FastMCP
 
 from src.job_aggregator.core import get_logger
 from src.job_aggregator.models.search import SearchRequest
+from src.job_aggregator.providers.linkedin_browser import LinkedInBrowserProvider
 from src.job_aggregator.services.aggregator import JobAggregatorService
 
 logger = get_logger(__name__)
@@ -114,3 +115,60 @@ def register_search_tools(mcp: FastMCP, service: JobAggregatorService) -> None:
                 "success": False,
                 "error": f"Failed to fetch job details: {exc}",
             }
+
+    @mcp.tool()
+    async def search_profiles(
+        query: str,
+        location: str | None = None,
+        network: str | None = None,
+        limit: int = 10,
+    ) -> dict:
+        """Search LinkedIn for people profiles.
+
+        Uses the browser-based LinkedIn provider to find people.
+
+        Args:
+            query: Search keywords, e.g. "machine learning engineer" or a person's name.
+            location: Filter by location, e.g. "San Francisco".
+            network: Connection degree: "first", "second", or "third".
+            limit: Max number of profiles to return (default 10).
+        """
+        logger.info("tool_search_profiles_called", query=query, location=location)
+
+        linkedin_browser = service.registry.get("linkedin_browser")
+        if not linkedin_browser or not isinstance(linkedin_browser, LinkedInBrowserProvider):
+            return {"success": False, "error": "LinkedIn browser provider not available"}
+
+        return await linkedin_browser.search_profiles(
+            keywords=query,
+            location=location,
+            network=network,
+            limit=limit,
+        )
+
+    @mcp.tool()
+    async def send_connection(
+        profile_url: str,
+        note: str = "",
+    ) -> dict:
+        """Send a LinkedIn connection request with an optional personalized note.
+
+        Uses the browser-based LinkedIn provider.
+
+        Args:
+            profile_url: Full LinkedIn profile URL, e.g. "https://www.linkedin.com/in/username/".
+            note: Optional personalized message to include (max 300 characters).
+        """
+        logger.info("tool_send_connection_called", profile_url=profile_url)
+
+        if not profile_url or "linkedin.com/in/" not in profile_url:
+            return {"success": False, "message": "Invalid LinkedIn profile URL"}
+
+        linkedin_browser = service.registry.get("linkedin_browser")
+        if not linkedin_browser or not isinstance(linkedin_browser, LinkedInBrowserProvider):
+            return {"success": False, "message": "LinkedIn browser provider not available"}
+
+        return await linkedin_browser.send_connection(
+            profile_url=profile_url,
+            note=note,
+        )

@@ -379,3 +379,156 @@ class TestExceptions:
     def test_base_error(self) -> None:
         exc = LinkedInBrowserError("something broke", status_code=503)
         assert exc.status_code == 503
+
+
+# ------------------------------------------------------------------
+# Scraper URL builder tests for people search
+# ------------------------------------------------------------------
+
+class TestPeopleSearchUrl:
+
+    def test_basic_people_search_url(self) -> None:
+        url = LinkedInScraper._build_people_search_url("data scientist")
+        assert "keywords=data+scientist" in url
+        assert "linkedin.com/search/results/people" in url
+
+    def test_people_search_url_with_location(self) -> None:
+        url = LinkedInScraper._build_people_search_url("engineer", location="NYC")
+        assert "location=NYC" in url
+
+    def test_people_search_url_with_network(self) -> None:
+        url = LinkedInScraper._build_people_search_url("pm", network="second")
+        assert "network=" in url
+        assert "S" in url
+
+    def test_people_search_url_with_offset(self) -> None:
+        url = LinkedInScraper._build_people_search_url("ml", start=10)
+        assert "page=2" in url
+
+
+# ------------------------------------------------------------------
+# Provider: search_profiles tests
+# ------------------------------------------------------------------
+
+class TestSearchProfiles:
+
+    @pytest.fixture
+    def mock_browser_manager(self) -> BrowserManager:
+        manager = MagicMock(spec=BrowserManager)
+        manager.ensure_ready = AsyncMock()
+        manager.close = AsyncMock()
+        return manager
+
+    @pytest.fixture
+    def provider(self, mock_browser_manager) -> LinkedInBrowserProvider:
+        settings = LinkedInBrowserSettings()
+        return LinkedInBrowserProvider(settings=settings, browser_manager=mock_browser_manager)
+
+    @pytest.mark.asyncio
+    async def test_search_profiles_success(self, provider, mock_browser_manager) -> None:
+        mock_page = MagicMock()
+        mock_browser_manager.ensure_ready.return_value = mock_page
+
+        with patch.object(LinkedInScraper, "scrape_people_search", new_callable=AsyncMock) as mock_scrape:
+            mock_scrape.return_value = {
+                "url": "https://linkedin.com/search/results/people/?keywords=ml",
+                "profiles": [
+                    {
+                        "name": "Jane Doe",
+                        "headline": "ML Engineer at BigCo",
+                        "location": "San Francisco",
+                        "profile_url": "https://linkedin.com/in/janedoe",
+                    },
+                ],
+            }
+
+            result = await provider.search_profiles(keywords="ml engineer")
+
+            assert result["success"] is True
+            assert len(result["profiles"]) == 1
+            assert result["profiles"][0]["name"] == "Jane Doe"
+
+    @pytest.mark.asyncio
+    async def test_search_profiles_auth_required(self, provider, mock_browser_manager) -> None:
+        mock_browser_manager.ensure_ready.side_effect = LinkedInAuthRequiredError()
+
+        result = await provider.search_profiles(keywords="ml")
+
+        assert result["success"] is False
+        assert "login required" in result["error_message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_search_profiles_unexpected_error(self, provider, mock_browser_manager) -> None:
+        mock_browser_manager.ensure_ready.side_effect = RuntimeError("crashed")
+
+        result = await provider.search_profiles(keywords="ml")
+
+        assert result["success"] is False
+        assert "Unexpected error" in result["error_message"]
+
+
+# ------------------------------------------------------------------
+# Provider: send_connection tests
+# ------------------------------------------------------------------
+
+class TestSendConnection:
+
+    @pytest.fixture
+    def mock_browser_manager(self) -> BrowserManager:
+        manager = MagicMock(spec=BrowserManager)
+        manager.ensure_ready = AsyncMock()
+        manager.close = AsyncMock()
+        return manager
+
+    @pytest.fixture
+    def provider(self, mock_browser_manager) -> LinkedInBrowserProvider:
+        settings = LinkedInBrowserSettings()
+        return LinkedInBrowserProvider(settings=settings, browser_manager=mock_browser_manager)
+
+    @pytest.mark.asyncio
+    async def test_send_connection_success(self, provider, mock_browser_manager) -> None:
+        mock_page = MagicMock()
+        mock_browser_manager.ensure_ready.return_value = mock_page
+
+        with patch.object(LinkedInScraper, "send_connection_request", new_callable=AsyncMock) as mock_send:
+            mock_send.return_value = {"success": True, "message": "Connection request sent"}
+
+            result = await provider.send_connection(
+                profile_url="https://www.linkedin.com/in/janedoe/",
+                note="Hi Jane, would love to connect!",
+            )
+
+            assert result["success"] is True
+            mock_send.assert_awaited_once_with(
+                "https://www.linkedin.com/in/janedoe/",
+                "Hi Jane, would love to connect!",
+            )
+
+    @pytest.mark.asyncio
+    async def test_send_connection_auth_required(self, provider, mock_browser_manager) -> None:
+        mock_browser_manager.ensure_ready.side_effect = LinkedInAuthRequiredError()
+
+        result = await provider.send_connection(
+            profile_url="https://www.linkedin.com/in/janedoe/",
+        )
+
+        assert result["success"] is False
+        assert "login required" in result["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_send_connection_no_button(self, provider, mock_browser_manager) -> None:
+        mock_page = MagicMock()
+        mock_browser_manager.ensure_ready.return_value = mock_page
+
+        with patch.object(LinkedInScraper, "send_connection_request", new_callable=AsyncMock) as mock_send:
+            mock_send.return_value = {
+                "success": False,
+                "message": "Connect button not found — may already be connected or pending",
+            }
+
+            result = await provider.send_connection(
+                profile_url="https://www.linkedin.com/in/janedoe/",
+            )
+
+            assert result["success"] is False
+            assert "Connect button not found" in result["message"]
