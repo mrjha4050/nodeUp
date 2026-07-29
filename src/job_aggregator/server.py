@@ -11,8 +11,6 @@ from mcp.server.fastmcp import FastMCP
 
 from src.job_aggregator.config import get_settings
 from src.job_aggregator.core import get_logger, setup_logging
-from src.job_aggregator.providers.linkedin import LinkedInProvider
-from src.job_aggregator.providers.indeed import IndeedProvider
 from src.job_aggregator.providers.linkedin_browser import LinkedInBrowserProvider
 from src.job_aggregator.providers.indeed_browser import IndeedBrowserProvider
 from src.job_aggregator.providers.registry import ProviderRegistry
@@ -30,8 +28,6 @@ def create_server() -> FastMCP:
 
     # --- Dependency graph ---
     registry = ProviderRegistry()
-    registry.register(LinkedInProvider())
-    registry.register(IndeedProvider())
 
     # Browser-based providers (no API keys needed)
     browser_provider = LinkedInBrowserProvider()
