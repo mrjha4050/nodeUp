@@ -13,11 +13,6 @@ from src.job_aggregator.models.job import Job
 
 logger = get_logger(__name__)
 
-
-# ------------------------------------------------------------------
-# Strategy interface
-# ------------------------------------------------------------------
-
 class DedupStrategy(ABC):
     """Abstract interface for deduplication strategies.
 
@@ -35,11 +30,6 @@ class DedupStrategy(ABC):
             Deduplicated list, preserving the order of first occurrence.
         """
         ...
-
-
-# ------------------------------------------------------------------
-# Exact-match strategy (company + title + location)
-# ------------------------------------------------------------------
 
 class ExactMatchStrategy(DedupStrategy):
     """Deduplicates by normalizing and comparing company, title, and location."""
@@ -71,10 +61,6 @@ class ExactMatchStrategy(DedupStrategy):
         location = job.location.strip().lower()
         return f"{company}::{title}::{location}"
 
-
-# ------------------------------------------------------------------
-# Service
-# ------------------------------------------------------------------
 
 class DeduplicationService:
     """Runs deduplication over a list of jobs using a pluggable strategy.

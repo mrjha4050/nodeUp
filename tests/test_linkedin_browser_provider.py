@@ -419,6 +419,16 @@ class TestPeopleSearchUrl:
         url = LinkedInScraper._build_people_search_url("ml", start=10)
         assert "page=2" in url
 
+    def test_people_search_url_with_network_codes(self) -> None:
+        url = LinkedInScraper._build_people_search_url(
+            "engineer",
+            network_codes=["F", "S"],
+            current_company="1115",
+        )
+        assert "network=" in url
+        assert "F" in url
+        assert "currentCompany=" in url
+
 
 # ------------------------------------------------------------------
 # Provider: search_profiles tests
@@ -546,3 +556,113 @@ class TestSendConnection:
 
             assert result["success"] is False
             assert "Connect button not found" in result["message"]
+
+
+# ------------------------------------------------------------------
+# Provider: person tool methods
+# ------------------------------------------------------------------
+
+class TestPersonProviderMethods:
+
+    @pytest.fixture
+    def mock_browser_manager(self) -> BrowserManager:
+        manager = MagicMock(spec=BrowserManager)
+        manager.ensure_ready = AsyncMock()
+        manager.close = AsyncMock()
+        return manager
+
+    @pytest.fixture
+    def provider(self, mock_browser_manager) -> LinkedInBrowserProvider:
+        settings = LinkedInBrowserSettings()
+        return LinkedInBrowserProvider(settings=settings, browser_manager=mock_browser_manager)
+
+    @pytest.mark.asyncio
+    async def test_get_person_profile_success(self, provider, mock_browser_manager) -> None:
+        mock_page = MagicMock()
+        mock_browser_manager.ensure_ready.return_value = mock_page
+
+        with patch.object(LinkedInScraper, "scrape_person_profile", new_callable=AsyncMock) as mock_scrape:
+            mock_scrape.return_value = {
+                "url": "https://linkedin.com/in/jane/",
+                "sections": {"profile": "Jane Doe"},
+            }
+
+            result = await provider.get_person_profile("jane", sections="experience,foo")
+
+            assert result["success"] is True
+            assert result["sections"]["profile"] == "Jane Doe"
+            assert result["unknown_sections"] == ["foo"]
+            mock_scrape.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_search_people_invalid_network(self, provider) -> None:
+        result = await provider.search_people("engineer", network=["X"])
+
+        assert result["success"] is False
+        assert "Invalid network filter" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_search_people_success(self, provider, mock_browser_manager) -> None:
+        mock_page = MagicMock()
+        mock_browser_manager.ensure_ready.return_value = mock_page
+
+        with patch.object(LinkedInScraper, "scrape_people_search_text", new_callable=AsyncMock) as mock_scrape:
+            mock_scrape.return_value = {
+                "url": "https://linkedin.com/search/results/people/",
+                "sections": {"results": "Jane Doe"},
+            }
+
+            result = await provider.search_people("engineer", network=["F"])
+
+            assert result["success"] is True
+            assert "results" in result["sections"]
+
+    @pytest.mark.asyncio
+    async def test_get_my_profile_success(self, provider, mock_browser_manager) -> None:
+        mock_page = MagicMock()
+        mock_browser_manager.ensure_ready.return_value = mock_page
+
+        with patch.object(LinkedInScraper, "scrape_my_profile", new_callable=AsyncMock) as mock_scrape:
+            mock_scrape.return_value = {
+                "url": "https://linkedin.com/in/me-user/",
+                "sections": {"profile": "Me"},
+            }
+
+            result = await provider.get_my_profile(sections="skills")
+
+            assert result["success"] is True
+            mock_scrape.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_get_sidebar_profiles_success(self, provider, mock_browser_manager) -> None:
+        mock_page = MagicMock()
+        mock_browser_manager.ensure_ready.return_value = mock_page
+
+        with patch.object(LinkedInScraper, "scrape_sidebar_profiles", new_callable=AsyncMock) as mock_scrape:
+            mock_scrape.return_value = {
+                "url": "https://linkedin.com/in/jane/",
+                "sidebar_profiles": {"people_you_may_know": ["/in/bob/"]},
+            }
+
+            result = await provider.get_sidebar_profiles("jane")
+
+            assert result["success"] is True
+            assert result["sidebar_profiles"]["people_you_may_know"] == ["/in/bob/"]
+
+    @pytest.mark.asyncio
+    async def test_connect_with_person_success(self, provider, mock_browser_manager) -> None:
+        mock_page = MagicMock()
+        mock_browser_manager.ensure_ready.return_value = mock_page
+
+        with patch.object(LinkedInScraper, "connect_with_person", new_callable=AsyncMock) as mock_connect:
+            mock_connect.return_value = {
+                "url": "https://linkedin.com/in/jane/",
+                "status": "pending",
+                "message": "Connection request sent",
+                "note_sent": True,
+            }
+
+            result = await provider.connect_with_person("jane", note="Hi")
+
+            assert result["success"] is True
+            assert result["status"] == "pending"

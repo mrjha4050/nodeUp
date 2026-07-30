@@ -1,4 +1,4 @@
-"""MCP tools for job search, job details, profile search, and connections.
+"""MCP tools for job search and job details.
 
 These are the tools exposed to MCP clients (e.g. Claude Desktop).
 They validate input, delegate to the service layer, and return
@@ -11,7 +11,6 @@ from mcp.server.fastmcp import FastMCP
 
 from src.job_aggregator.core import get_logger
 from src.job_aggregator.models.search import SearchRequest
-from src.job_aggregator.providers.linkedin_browser import LinkedInBrowserProvider
 from src.job_aggregator.services.aggregator import JobAggregatorService
 
 logger = get_logger(__name__)
@@ -33,8 +32,8 @@ def register_search_tools(mcp: FastMCP, service: JobAggregatorService) -> None:
     ) -> dict:
         """Search for jobs across all registered providers.
 
-        Searches LinkedIn, Indeed, and any other registered provider
-        concurrently, deduplicates results, and returns a unified list.
+        Searches registered providers concurrently, deduplicates results,
+        and returns a unified list.
 
         Args:
             query: Search keywords, e.g. "python backend engineer".
@@ -81,9 +80,8 @@ def register_search_tools(mcp: FastMCP, service: JobAggregatorService) -> None:
     async def get_job_details(job_id: str) -> dict:
         """Get full details for a specific job by its ID.
 
-        The job ID includes the provider prefix, e.g. "linkedin_12345"
-        or "indeed_abc". The request is routed to the correct provider
-        automatically.
+        The job ID includes the provider prefix, e.g. "linkedin_browser_12345".
+        The request is routed to the correct provider automatically.
 
         Args:
             job_id: The full job ID including provider prefix.
@@ -115,60 +113,3 @@ def register_search_tools(mcp: FastMCP, service: JobAggregatorService) -> None:
                 "success": False,
                 "error": f"Failed to fetch job details: {exc}",
             }
-
-    @mcp.tool()
-    async def search_profiles(
-        query: str,
-        location: str | None = None,
-        network: str | None = None,
-        limit: int = 10,
-    ) -> dict:
-        """Search LinkedIn for people profiles.
-
-        Uses the browser-based LinkedIn provider to find people.
-
-        Args:
-            query: Search keywords, e.g. "machine learning engineer" or a person's name.
-            location: Filter by location, e.g. "San Francisco".
-            network: Connection degree: "first", "second", or "third".
-            limit: Max number of profiles to return (default 10).
-        """
-        logger.info("tool_search_profiles_called", query=query, location=location)
-
-        linkedin_browser = service.registry.get("linkedin_browser")
-        if not linkedin_browser or not isinstance(linkedin_browser, LinkedInBrowserProvider):
-            return {"success": False, "error": "LinkedIn browser provider not available"}
-
-        return await linkedin_browser.search_profiles(
-            keywords=query,
-            location=location,
-            network=network,
-            limit=limit,
-        )
-
-    @mcp.tool()
-    async def send_connection(
-        profile_url: str,
-        note: str = "",
-    ) -> dict:
-        """Send a LinkedIn connection request with an optional personalized note.
-
-        Uses the browser-based LinkedIn provider.
-
-        Args:
-            profile_url: Full LinkedIn profile URL, e.g. "https://www.linkedin.com/in/username/".
-            note: Optional personalized message to include (max 300 characters).
-        """
-        logger.info("tool_send_connection_called", profile_url=profile_url)
-
-        if not profile_url or "linkedin.com/in/" not in profile_url:
-            return {"success": False, "message": "Invalid LinkedIn profile URL"}
-
-        linkedin_browser = service.registry.get("linkedin_browser")
-        if not linkedin_browser or not isinstance(linkedin_browser, LinkedInBrowserProvider):
-            return {"success": False, "message": "LinkedIn browser provider not available"}
-
-        return await linkedin_browser.send_connection(
-            profile_url=profile_url,
-            note=note,
-        )

@@ -42,13 +42,13 @@ are only picked up on launch.
 If the client exposes an MCP status command (e.g. `claude mcp list`), run it
 and confirm `job-aggregator` shows as connected. Otherwise ask the user to
 run the `health_check` tool once the client restarts and confirm
-`linkedin_browser` and `indeed_browser` both report as up.
+`linkedin_browser` reports as up.
 
 ## Notes
 
-- No API keys are required — both providers are browser-based scraping, not
-  the REST APIs. Ignore the optional `linkedin_client_id` /
-  `linkedin_client_secret` / `indeed_api_key` settings unless the user
-  specifically asks to switch to API-based auth.
+- No API keys are required — the provider is browser-based scraping, not
+  the REST API. Ignore the optional `linkedin_client_id` /
+  `linkedin_client_secret` settings unless the user specifically asks to
+  switch to API-based auth.
 - Full client config examples, troubleshooting, and tool list: see
   `README.md`.

@@ -3,8 +3,8 @@
   "name": "nodeUp",
   "display_name": "nodeUp",
   "version": "0.1.0",
-  "description": "Search LinkedIn & Indeed jobs from any AI assistant. Browser-based scraping — no API keys needed.",
-  "long_description": "A production-grade MCP server that aggregates job listings from LinkedIn and Indeed. Uses browser-based scraping via Patchright (stealth Playwright) so no API keys are required. Supports filters for location, job type, experience level, remote/onsite, and skills. Results are deduplicated across providers.",
+  "description": "Search LinkedIn jobs and profiles from any AI assistant. Browser-based scraping — no API keys needed.",
+  "long_description": "A production-grade MCP server for LinkedIn job search and profile scraping. Uses browser-based scraping via Patchright (stealth Playwright) so no API keys are required. Supports job filters for location, job type, experience level, remote/onsite, and skills, plus person tools for profile scraping, people search, sidebar recommendations, and connection requests.",
   "author": {
     "name": "Naman Jha"
   },
@@ -28,19 +28,31 @@
   "tools": [
     {
       "name": "search_jobs",
-      "description": "Search for jobs across LinkedIn and Indeed with filters (query, location, job_type, experience_level, location_type, skills)"
+      "description": "Search for jobs with filters (query, location, job_type, experience_level, location_type, skills)"
     },
     {
       "name": "get_job_details",
       "description": "Get full details for a specific job by its provider-prefixed ID"
     },
     {
-      "name": "search_profiles",
-      "description": "Search LinkedIn for people profiles by keywords, location, and network degree"
+      "name": "get_person_profile",
+      "description": "Scrape a LinkedIn profile and optional detail sections"
     },
     {
-      "name": "send_connection",
-      "description": "Send a LinkedIn connection request with an optional personalized note"
+      "name": "get_my_profile",
+      "description": "Scrape the authenticated user's own LinkedIn profile"
+    },
+    {
+      "name": "search_people",
+      "description": "Search LinkedIn people and return raw page text for parsing"
+    },
+    {
+      "name": "get_sidebar_profiles",
+      "description": "Extract sidebar recommendation profile links from a profile page"
+    },
+    {
+      "name": "connect_with_person",
+      "description": "Send a LinkedIn connection request with an optional note"
     },
     {
       "name": "health_check",
@@ -72,13 +84,6 @@
       "description": "Optional — only needed if you have LinkedIn API access",
       "sensitive": true,
       "required": false
-    },
-    "indeed_api_key": {
-      "type": "string",
-      "title": "Indeed API Key",
-      "description": "Optional — only needed if you have Indeed API access",
-      "sensitive": true,
-      "required": false
     }
   },
   "compatibility": {
@@ -90,7 +95,7 @@
   "keywords": [
     "jobs",
     "linkedin",
-    "indeed",
+    "profiles",
     "job-search",
     "recruiting",
     "career"

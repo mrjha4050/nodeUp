@@ -12,11 +12,11 @@ from mcp.server.fastmcp import FastMCP
 from src.job_aggregator.config import get_settings
 from src.job_aggregator.core import get_logger, setup_logging
 from src.job_aggregator.providers.linkedin_browser import LinkedInBrowserProvider
-from src.job_aggregator.providers.indeed_browser import IndeedBrowserProvider
 from src.job_aggregator.providers.registry import ProviderRegistry
 from src.job_aggregator.services.aggregator import JobAggregatorService
 from src.job_aggregator.services.dedup import DeduplicationService
 from src.job_aggregator.tools.health import register_health_tools
+from src.job_aggregator.tools.person import register_person_tools
 from src.job_aggregator.tools.search import register_search_tools
 
 
@@ -32,9 +32,6 @@ def create_server() -> FastMCP:
     # Browser-based providers (no API keys needed)
     browser_provider = LinkedInBrowserProvider()
     registry.register(browser_provider)
-
-    indeed_browser_provider = IndeedBrowserProvider()
-    registry.register(indeed_browser_provider)
 
     dedup = DeduplicationService()
     service = JobAggregatorService(registry=registry, dedup_service=dedup)
@@ -61,6 +58,7 @@ def create_server() -> FastMCP:
     # --- Register MCP tools ---
     register_health_tools(mcp, registry=registry)
     register_search_tools(mcp, service=service)
+    register_person_tools(mcp, registry=registry)
 
     logger.info(
         "server_initialized",

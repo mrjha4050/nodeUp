@@ -6,12 +6,20 @@ LinkedIn's frequent layout changes.
 """
 
 import re
+from collections.abc import Awaitable, Callable
 from urllib.parse import quote_plus
 
 from patchright.async_api import Page
 
 from src.job_aggregator.core import get_logger
 from src.job_aggregator.providers.linkedin_browser.exceptions import LinkedInPageLoadError
+from src.job_aggregator.providers.linkedin_browser.person_sections import (
+    DEFAULT_DETAIL_SCROLLS,
+    DEFAULT_POSTS_SCROLLS,
+    normalize_username,
+    profile_url,
+    section_url,
+)
 
 logger = get_logger(__name__)
 
@@ -419,11 +427,319 @@ class LinkedInScraper:
         return []
 
     @staticmethod
+    def _extract_job_id_from_href(href: str) -> str | None:
+        """Pull the numeric job ID from a LinkedIn job URL."""
+        match = re.search(r"/jobs/view/(\d+)", href)
+        return match.group(1) if match else None
+
+    # ------------------------------------------------------------------
+    # Person / profile scraping
+    # ------------------------------------------------------------------
+
+    async def scrape_person_profile(
+        self,
+        linkedin_username: str,
+        sections: list[str] | None = None,
+        max_scrolls: int | None = None,
+        on_progress: Callable[[int, int, str], Awaitable[None]] | None = None,
+    ) -> dict:
+        """Scrape a LinkedIn profile and optional detail sections."""
+        username = normalize_username(linkedin_username)
+        url = profile_url(username)
+        requested = sections or []
+        total_steps = 1 + len(requested)
+        sections_data: dict[str, str] = {}
+
+        await self._report(on_progress, 0, total_steps, "Loading main profile")
+        await self._navigate(url)
+        await self._wait_for_profile_page()
+        sections_data["profile"] = _clean_text(await self._extract_main_text())
+
+        for index, section in enumerate(requested, start=1):
+            await self._report(
+                on_progress,
+                index,
+                total_steps,
+                f"Loading {section}",
+            )
+            text = await self._scrape_profile_section(
+                username,
+                section,
+                max_scrolls=max_scrolls,
+            )
+            if text:
+                sections_data[section] = text
+
+        return {"url": self._page.url, "sections": sections_data}
+
+    async def scrape_my_profile(
+        self,
+        sections: list[str] | None = None,
+        max_scrolls: int | None = None,
+        on_progress: Callable[[int, int, str], Awaitable[None]] | None = None,
+    ) -> dict:
+        """Resolve /in/me/ and scrape the authenticated user's profile."""
+        await self._navigate("https://www.linkedin.com/in/me/")
+        await self._wait_for_profile_page()
+        current_url = self._page.url
+        match = re.search(r"/in/([^/?#]+)/?", current_url)
+        if not match or match.group(1) == "me":
+            raise LinkedInPageLoadError(current_url, "Could not resolve authenticated profile URL")
+        return await self.scrape_person_profile(
+            match.group(1),
+            sections=sections,
+            max_scrolls=max_scrolls,
+            on_progress=on_progress,
+        )
+
+    async def scrape_people_search_text(
+        self,
+        keywords: str,
+        location: str | None = None,
+        network: list[str] | None = None,
+        current_company: str | None = None,
+    ) -> dict:
+        """Scrape people search results as raw page text."""
+        url = self._build_people_search_url(
+            keywords,
+            location=location,
+            network_codes=network,
+            current_company=current_company,
+        )
+        logger.info("scraper_people_search_text_navigating", url=url)
+        await self._navigate(url)
+
+        try:
+            await self._page.wait_for_selector(
+                ".reusable-search__result-container, .search-results-container, main",
+                timeout=10000,
+            )
+        except Exception:
+            logger.warning("scraper_people_search_selector_timeout", url=url)
+
+        await self._scroll_page(scroll_count=3)
+        text = _clean_text(await self._extract_main_text())
+        return {
+            "url": url,
+            "sections": {"results": text},
+        }
+
+    async def scrape_sidebar_profiles(self, linkedin_username: str) -> dict:
+        """Extract sidebar recommendation profile links from a profile page."""
+        username = normalize_username(linkedin_username)
+        url = profile_url(username)
+        await self._navigate(url)
+        await self._wait_for_profile_page()
+
+        sidebar_profiles = await self._page.evaluate(
+            """() => {
+                const sections = {};
+                const headings = Array.from(document.querySelectorAll('h2, h3, span'));
+                const targets = [
+                    ['more_profiles', /more profiles for you/i],
+                    ['premium_profiles', /explore premium profiles/i],
+                    ['people_you_may_know', /people you may know/i],
+                ];
+
+                function collectLinks(root) {
+                    const links = Array.from(root.querySelectorAll("a[href*='/in/']"))
+                        .map((a) => a.getAttribute('href') || '')
+                        .filter((href) => href.includes('/in/') && !href.includes('/company/'))
+                        .map((href) => {
+                            const match = href.match(/\\/in\\/([^/?#]+)/);
+                            return match ? `/in/${match[1]}/` : null;
+                        })
+                        .filter(Boolean);
+                    return [...new Set(links)];
+                }
+
+                for (const [key, pattern] of targets) {
+                    const heading = headings.find((el) => pattern.test((el.textContent || '').trim()));
+                    if (!heading) continue;
+                    let container = heading.closest('section, aside, div');
+                    for (let i = 0; i < 4 && container; i++) {
+                        const links = collectLinks(container);
+                        if (links.length) {
+                            sections[key] = links;
+                            break;
+                        }
+                        container = container.parentElement;
+                    }
+                }
+
+                return sections;
+            }"""
+        )
+
+        return {"url": self._page.url, "sidebar_profiles": sidebar_profiles}
+
+    async def connect_with_person(self, linkedin_username: str, note: str | None = None) -> dict:
+        """Send a connection request and return a rich status payload."""
+        username = normalize_username(linkedin_username)
+        url = profile_url(username)
+        await self._navigate(url)
+        await self._wait_for_profile_page()
+
+        page_text = (await self._extract_main_text()).lower()
+        if "pending" in page_text and "message" in page_text:
+            return {
+                "url": url,
+                "status": "pending",
+                "message": "Connection request already pending",
+                "note_sent": False,
+            }
+
+        connect_btn = await self._find_connect_button()
+        if not connect_btn:
+            if "message" in page_text:
+                return {
+                    "url": url,
+                    "status": "already_connected",
+                    "message": "Already connected or messaging is available",
+                    "note_sent": False,
+                }
+            if "follow" in page_text:
+                return {
+                    "url": url,
+                    "status": "follow_only",
+                    "message": "Only Follow is available for this profile",
+                    "note_sent": False,
+                }
+            return {
+                "url": url,
+                "status": "connect_unavailable",
+                "message": "Connect button not found",
+                "note_sent": False,
+            }
+
+        await connect_btn.click()
+        await self._page.wait_for_timeout(1000)
+
+        note_sent = False
+        if note:
+            note_btn = await self._page.query_selector(
+                "button[aria-label='Add a note'], button:has-text('Add a note')"
+            )
+            if not note_btn:
+                return {
+                    "url": url,
+                    "status": "note_not_supported",
+                    "message": "Personalized notes are not supported for this profile",
+                    "note_sent": False,
+                }
+
+            await note_btn.click()
+            await self._page.wait_for_timeout(500)
+            note_textarea = await self._page.query_selector(
+                "textarea[name='message'], textarea#custom-message, textarea"
+            )
+            if note_textarea:
+                await note_textarea.fill(note[:300])
+                note_sent = True
+                await self._page.wait_for_timeout(300)
+
+        premium_dialog = await self._page.query_selector(
+            "div[role='dialog']:has-text('Premium'), div[role='alertdialog']:has-text('note')"
+        )
+        if premium_dialog:
+            dialog_text = (await premium_dialog.inner_text()).strip()
+            if "premium" in dialog_text.lower() or "limit" in dialog_text.lower():
+                return {
+                    "url": url,
+                    "status": "custom_note_limit_reached",
+                    "message": dialog_text,
+                    "note_sent": False,
+                }
+
+        send_btn = await self._page.query_selector(
+            "button[aria-label='Send invitation'], button[aria-label='Send now'], "
+            "button:has-text('Send')"
+        )
+        if not send_btn:
+            return {
+                "url": url,
+                "status": "send_failed",
+                "message": "Send button not found after clicking Connect",
+                "note_sent": note_sent,
+            }
+
+        await send_btn.click()
+        await self._page.wait_for_timeout(1000)
+        return {
+            "url": url,
+            "status": "pending",
+            "message": "Connection request sent",
+            "note_sent": note_sent,
+        }
+
+    async def _scrape_profile_section(
+        self,
+        username: str,
+        section: str,
+        max_scrolls: int | None = None,
+    ) -> str:
+        """Navigate to a profile section and extract its text."""
+        url = section_url(username, section)
+        await self._navigate(url)
+        await self._wait_for_profile_page()
+
+        if section == "posts":
+            scroll_limit = max_scrolls or DEFAULT_POSTS_SCROLLS
+            await self._scroll_page(scroll_count=scroll_limit)
+        else:
+            scroll_limit = max_scrolls or DEFAULT_DETAIL_SCROLLS
+            await self._click_show_more(scroll_limit)
+
+        return _clean_text(await self._extract_main_text())
+
+    async def _click_show_more(self, max_clicks: int) -> None:
+        """Click LinkedIn 'Show more' buttons up to max_clicks times."""
+        selectors = [
+            "button:has-text('Show more')",
+            "button:has-text('Show all')",
+            "button[aria-label*='Show more']",
+        ]
+        for _ in range(max_clicks):
+            clicked = False
+            for selector in selectors:
+                button = await self._page.query_selector(selector)
+                if button and await button.is_visible():
+                    await button.click()
+                    await self._page.wait_for_timeout(700)
+                    clicked = True
+                    break
+            if not clicked:
+                break
+
+    async def _wait_for_profile_page(self) -> None:
+        """Wait for a profile or profile-detail page to render."""
+        try:
+            await self._page.wait_for_selector(
+                ".pv-top-card, .scaffold-layout__main, main",
+                timeout=10000,
+            )
+        except Exception:
+            logger.warning("scraper_profile_selector_timeout", url=self._page.url)
+
+    @staticmethod
+    async def _report(
+        callback: Callable[[int, int, str], Awaitable[None]] | None,
+        progress: int,
+        total: int,
+        message: str,
+    ) -> None:
+        if callback is not None:
+            await callback(progress, total, message)
+
+    @staticmethod
     def _build_people_search_url(
         keywords: str,
         location: str | None = None,
         network: str | None = None,
         start: int = 0,
+        *,
+        network_codes: list[str] | None = None,
+        current_company: str | None = None,
     ) -> str:
         """Build a LinkedIn people search URL."""
         base = "https://www.linkedin.com/search/results/people/?"
@@ -432,18 +748,24 @@ class LinkedInScraper:
         if location:
             params.append(f"location={quote_plus(location)}")
 
-        # network: F=1st, S=2nd, O=3rd+
-        network_map = {"first": "F", "second": "S", "third": "O"}
-        if network and network in network_map:
-            params.append(f"network=%5B%22{network_map[network]}%22%5D")
+        codes: list[str] = []
+        if network_codes:
+            valid = {"F", "S", "O"}
+            codes = [code.upper() for code in network_codes if code.upper() in valid]
+        elif network:
+            network_map = {"first": "F", "second": "S", "third": "O", "F": "F", "S": "S", "O": "O"}
+            mapped = network_map.get(network)
+            if mapped:
+                codes = [mapped]
+
+        if codes:
+            encoded = "%2C".join(f"%22{code}%22" for code in codes)
+            params.append(f"network=%5B{encoded}%5D")
+
+        if current_company:
+            params.append(f"currentCompany=%5B%22{quote_plus(current_company)}%22%5D")
 
         if start > 0:
             params.append(f"page={start // 10 + 1}")
 
         return base + "&".join(params)
-
-    @staticmethod
-    def _extract_job_id_from_href(href: str) -> str | None:
-        """Pull the numeric job ID from a LinkedIn job URL."""
-        match = re.search(r"/jobs/view/(\d+)", href)
-        return match.group(1) if match else None

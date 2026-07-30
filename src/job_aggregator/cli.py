@@ -55,7 +55,7 @@ def main() -> None:
     """CLI entry point — handles --login, --install-browser, or runs the server."""
     parser = argparse.ArgumentParser(
         prog="job-aggregator",
-        description="Job Aggregator MCP Server — search LinkedIn & Indeed from any AI assistant",
+        description="Job Aggregator MCP Server — search LinkedIn jobs and profiles from any AI assistant",
     )
     parser.add_argument(
         "--login",

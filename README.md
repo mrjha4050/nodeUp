@@ -1,6 +1,6 @@
 # nodeUp
 
-A production-grade MCP server that aggregates job listings from LinkedIn and Indeed, exposing them as tools for AI assistants. Supports browser-based LinkedIn scraping — no API keys needed.
+A production-grade MCP server that aggregates LinkedIn job listings and profile tools for AI assistants. Supports browser-based LinkedIn scraping — no API keys needed.
 
 ---
 
@@ -187,10 +187,13 @@ Once connected, your AI assistant has these tools:
 
 | Tool | What it does |
 |------|-------------|
-| `search_jobs` | Search jobs across all providers with filters (query, location, job_type, experience_level, location_type, skills) |
+| `search_jobs` | Search jobs with filters (query, location, job_type, experience_level, location_type, skills) |
 | `get_job_details` | Get full details for a job by ID (e.g., `linkedin_browser_4433918896`) |
-| `search_profiles` | Search LinkedIn people profiles by keywords, location, and network |
-| `send_connection` | Send a LinkedIn connection request with an optional note |
+| `get_person_profile` | Scrape a LinkedIn profile and optional detail sections |
+| `get_my_profile` | Scrape the authenticated user's own LinkedIn profile |
+| `search_people` | Search LinkedIn people and return raw page text for parsing |
+| `get_sidebar_profiles` | Extract sidebar recommendation profile links from a profile page |
+| `connect_with_person` | Send a LinkedIn connection request with an optional note |
 | `health_check` | Check server status and which providers are online |
 | `get_server_config` | View current server configuration |
 
@@ -200,6 +203,8 @@ Once connected, your AI assistant has these tools:
 "Search for remote Python developer jobs in the United States"
 "Find senior machine learning engineer positions in New York"
 "Get details for job linkedin_browser_4433918896"
+"Get the LinkedIn profile for williamhgates with experience and education sections"
+"Search for software engineers in New York who work at Google"
 "Check which job providers are currently available"
 ```
 
@@ -219,7 +224,6 @@ cp .env.example .env
 | `LINKEDIN_BROWSER_SLOW_MO` | `100` | Browser slowdown (ms, anti-detection) |
 | `LINKEDIN_CLIENT_ID` | _(empty)_ | LinkedIn API OAuth2 ID (optional) |
 | `LINKEDIN_CLIENT_SECRET` | _(empty)_ | LinkedIn API secret (optional) |
-| `INDEED_API_KEY` | _(empty)_ | Indeed API key (optional) |
 
 The browser provider works without any API keys. Just `--login` once.
 
@@ -231,9 +235,8 @@ The browser provider works without any API keys. Just `--login` once.
 |----------|--------|------|
 | `linkedin_browser` | Browser scraping (Patchright) | One-time browser login |
 | `linkedin` | REST API (httpx) | OAuth2 credentials |
-| `indeed` | REST API (httpx) | API key |
 
-All providers run concurrently. Results are deduplicated automatically.
+Results are deduplicated automatically when multiple providers are registered.
 
 ---
 

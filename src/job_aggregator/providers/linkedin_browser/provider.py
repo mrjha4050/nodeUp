@@ -4,7 +4,6 @@ Uses Patchright (stealth Playwright) to scrape LinkedIn pages directly.
 This provider implements the same JobProvider ABC as the API-based one,
 so it plugs into the existing registry and aggregator seamlessly.
 
-No LinkedIn API keys required — uses real browser session cookies.
 """
 
 from src.job_aggregator.core import get_logger
@@ -13,7 +12,14 @@ from src.job_aggregator.models.search import SearchRequest, ProviderResponse
 from src.job_aggregator.providers.base import JobProvider
 from src.job_aggregator.providers.linkedin_browser.browser import BrowserManager
 from src.job_aggregator.providers.linkedin_browser.config import LinkedInBrowserSettings
-from src.job_aggregator.providers.linkedin_browser.exceptions import LinkedInBrowserError
+from src.job_aggregator.providers.linkedin_browser.exceptions import (
+    LinkedInAuthRequiredError,
+    LinkedInBrowserError,
+)
+from src.job_aggregator.providers.linkedin_browser.person_sections import (
+    normalize_username,
+    parse_person_sections,
+)
 from src.job_aggregator.providers.linkedin_browser.parser import parse_job_card, parse_job_detail
 from src.job_aggregator.providers.linkedin_browser.scraper import LinkedInScraper
 
@@ -149,11 +155,7 @@ class LinkedInBrowserProvider(JobProvider):
     ) -> dict:
         """Search LinkedIn for people profiles.
 
-        Args:
-            keywords: Search terms, e.g. "machine learning engineer".
-            location: Filter by location.
-            network: Connection degree filter: "first", "second", "third".
-            limit: Max profiles to return.
+        Legacy structured profile-card response used by older tools.
         """
         try:
             page = await self._browser.ensure_ready()
@@ -178,12 +180,173 @@ class LinkedInBrowserProvider(JobProvider):
                 "total_results": len(result.get("profiles", [])),
             }
 
+        except LinkedInAuthRequiredError as exc:
+            logger.error("linkedin_browser_profile_search_auth_required", error=str(exc))
+            return {"success": False, "profiles": [], "error_message": str(exc)}
         except LinkedInBrowserError as exc:
             logger.error("linkedin_browser_profile_search_failed", error=str(exc))
             return {"success": False, "profiles": [], "error_message": str(exc)}
         except Exception as exc:
             logger.exception("linkedin_browser_profile_search_unexpected_error")
             return {"success": False, "profiles": [], "error_message": f"Unexpected error: {exc}"}
+
+    async def get_person_profile(
+        self,
+        linkedin_username: str,
+        sections: str | None = None,
+        max_scrolls: int | None = None,
+    ) -> dict:
+        """Scrape a LinkedIn profile and optional detail sections."""
+        try:
+            requested, unknown = parse_person_sections(sections)
+            page = await self._browser.ensure_ready()
+            scraper = LinkedInScraper(page, self._settings.navigation_timeout)
+            result = await scraper.scrape_person_profile(
+                linkedin_username,
+                sections=requested,
+                max_scrolls=max_scrolls,
+            )
+            if unknown:
+                result["unknown_sections"] = unknown
+            result["success"] = True
+            return result
+        except ValueError as exc:
+            return {"success": False, "error": str(exc)}
+        except LinkedInAuthRequiredError as exc:
+            return {"success": False, "error": str(exc)}
+        except LinkedInBrowserError as exc:
+            return {"success": False, "error": str(exc)}
+        except Exception as exc:
+            logger.exception("linkedin_browser_get_person_profile_failed", username=linkedin_username)
+            return {"success": False, "error": f"Unexpected error: {exc}"}
+
+    async def get_my_profile(
+        self,
+        sections: str | None = None,
+        max_scrolls: int | None = None,
+    ) -> dict:
+        """Scrape the authenticated user's own LinkedIn profile."""
+        try:
+            requested, unknown = parse_person_sections(sections)
+            page = await self._browser.ensure_ready()
+            scraper = LinkedInScraper(page, self._settings.navigation_timeout)
+            result = await scraper.scrape_my_profile(
+                sections=requested,
+                max_scrolls=max_scrolls,
+            )
+            if unknown:
+                result["unknown_sections"] = unknown
+            result["success"] = True
+            return result
+        except LinkedInAuthRequiredError as exc:
+            return {"success": False, "error": str(exc)}
+        except LinkedInBrowserError as exc:
+            return {"success": False, "error": str(exc)}
+        except Exception as exc:
+            logger.exception("linkedin_browser_get_my_profile_failed")
+            return {"success": False, "error": f"Unexpected error: {exc}"}
+
+    async def search_people(
+        self,
+        keywords: str,
+        location: str | None = None,
+        network: list[str] | None = None,
+        current_company: str | None = None,
+    ) -> dict:
+        """Search LinkedIn people and return raw page text for LLM parsing."""
+        try:
+            if network:
+                valid = {"F", "S", "O"}
+                invalid = [code for code in network if code.upper() not in valid]
+                if invalid:
+                    return {
+                        "success": False,
+                        "error": (
+                            "Invalid network filter values: "
+                            f"{', '.join(invalid)}. Use F, S, or O."
+                        ),
+                    }
+
+            page = await self._browser.ensure_ready()
+            scraper = LinkedInScraper(page, self._settings.navigation_timeout)
+            result = await scraper.scrape_people_search_text(
+                keywords=keywords,
+                location=location,
+                network=network,
+                current_company=current_company,
+            )
+            result["success"] = True
+            return result
+        except LinkedInAuthRequiredError as exc:
+            return {"success": False, "error": str(exc)}
+        except LinkedInBrowserError as exc:
+            return {"success": False, "error": str(exc)}
+        except Exception as exc:
+            logger.exception("linkedin_browser_search_people_failed", keywords=keywords)
+            return {"success": False, "error": f"Unexpected error: {exc}"}
+
+    async def get_sidebar_profiles(self, linkedin_username: str) -> dict:
+        """Extract sidebar recommendation profile links from a profile page."""
+        try:
+            normalize_username(linkedin_username)
+            page = await self._browser.ensure_ready()
+            scraper = LinkedInScraper(page, self._settings.navigation_timeout)
+            result = await scraper.scrape_sidebar_profiles(linkedin_username)
+            result["success"] = True
+            return result
+        except ValueError as exc:
+            return {"success": False, "error": str(exc)}
+        except LinkedInAuthRequiredError as exc:
+            return {"success": False, "error": str(exc)}
+        except LinkedInBrowserError as exc:
+            return {"success": False, "error": str(exc)}
+        except Exception as exc:
+            logger.exception(
+                "linkedin_browser_get_sidebar_profiles_failed",
+                username=linkedin_username,
+            )
+            return {"success": False, "error": f"Unexpected error: {exc}"}
+
+    async def connect_with_person(
+        self,
+        linkedin_username: str,
+        note: str | None = None,
+    ) -> dict:
+        """Send a LinkedIn connection request to a profile username."""
+        try:
+            normalize_username(linkedin_username)
+            page = await self._browser.ensure_ready()
+            scraper = LinkedInScraper(page, self._settings.navigation_timeout)
+            result = await scraper.connect_with_person(linkedin_username, note=note)
+            result["success"] = result.get("status") == "pending"
+            return result
+        except ValueError as exc:
+            return {"success": False, "status": "unavailable", "error": str(exc), "message": str(exc)}
+        except LinkedInAuthRequiredError as exc:
+            return {
+                "success": False,
+                "status": "unavailable",
+                "error": str(exc),
+                "message": str(exc),
+            }
+        except LinkedInBrowserError as exc:
+            return {
+                "success": False,
+                "status": "unavailable",
+                "error": str(exc),
+                "message": str(exc),
+            }
+        except Exception as exc:
+            logger.exception(
+                "linkedin_browser_connect_with_person_failed",
+                username=linkedin_username,
+            )
+            return {
+                "success": False,
+                "status": "unavailable",
+                "error": f"Unexpected error: {exc}",
+                "message": f"Unexpected error: {exc}",
+            }
 
     async def send_connection(self, profile_url: str, note: str = "") -> dict:
         """Send a connection request to a LinkedIn profile.
