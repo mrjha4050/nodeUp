@@ -24,6 +24,24 @@ from src.job_aggregator.models.job import (
 
 logger = get_logger(__name__)
 
+# LinkedIn inserts these as standalone lines in job cards (badges, not data).
+# Left unstripped, they silently shift every line-position assumption below —
+# e.g. "Promoted" becomes the "company name". Order doesn't matter; matched
+# case-insensitively against the whole line.
+_BADGE_LINES = {
+    "promoted",
+    "easy apply",
+    "actively recruiting",
+    "viewed",
+    "applied",
+    "be an early applicant",
+}
+
+
+def _strip_badge_lines(lines: list[str]) -> list[str]:
+    """Remove standalone badge/status lines that aren't part of title/company/location."""
+    return [line for line in lines if line.strip().lower() not in _BADGE_LINES]
+
 
 def parse_job_card(card: dict) -> Job | None:
     """Parse a single scraped job card into a domain Job.
@@ -41,6 +59,7 @@ def parse_job_card(card: dict) -> Job | None:
 
     try:
         lines = [line.strip() for line in text.strip().split("\n") if line.strip()]
+        lines = _strip_badge_lines(lines)
         if len(lines) < 2:
             return None
 
@@ -114,6 +133,7 @@ def parse_job_detail(detail: dict, job_id: str) -> Job | None:
 
     try:
         lines = [line.strip() for line in text.strip().split("\n") if line.strip()]
+        lines = _strip_badge_lines(lines)
         if len(lines) < 2:
             return None
 

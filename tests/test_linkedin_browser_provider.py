@@ -63,6 +63,20 @@ class TestParseJobCard:
         assert job.location_type == LocationType.ONSITE
         assert "linkedin.com" in str(job.application_url)
 
+    def test_badge_line_between_title_and_company(self) -> None:
+        """A 'Promoted' badge line inserted before the company would otherwise
+        become the parsed company name, shifting every field after it."""
+        card = {
+            "text": "Backend Engineer\nBackend Engineer\nPromoted\nAcme Corp\nRemote\n1 week ago",
+            "job_id": "555",
+            "href": "/jobs/view/555/",
+        }
+        job = parse_job_card(card)
+        assert job is not None
+        assert job.title == "Backend Engineer"
+        assert job.company_info.name == "Acme Corp"
+        assert job.location_type == LocationType.REMOTE
+
     def test_relative_href_becomes_absolute(self) -> None:
         card = {
             "text": "Dev\nCo\nNYC, NY\n1 day ago",

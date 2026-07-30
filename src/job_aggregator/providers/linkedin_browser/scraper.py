@@ -179,25 +179,39 @@ class LinkedInScraper:
 
         for selector in card_selectors:
             cards = await self._page.query_selector_all(selector)
-            if cards:
-                results = []
-                for card in cards[:max_cards]:
-                    try:
-                        text = await card.inner_text()
-                        # Try to extract the job link for the ID
-                        link = await card.query_selector("a[href*='/jobs/view/']")
-                        href = await link.get_attribute("href") if link else None
-                        job_id = self._extract_job_id_from_href(href) if href else None
+            if not cards:
+                continue
 
-                        results.append({
-                            "text": text.strip(),
-                            "job_id": job_id,
-                            "href": href,
-                        })
-                    except Exception:
+            results = []
+            seen_ids: set[str] = set()
+            skipped_no_id = 0
+            for card in cards[:max_cards]:
+                try:
+                    text = await card.inner_text()
+                    # Try to extract the job link for the ID
+                    link = await card.query_selector("a[href*='/jobs/view/']")
+                    href = await link.get_attribute("href") if link else None
+                    job_id = self._extract_job_id_from_href(href) if href else None
+
+                    if not job_id:
+                        skipped_no_id += 1
                         continue
-                if results:
-                    return results
+                    if job_id in seen_ids:
+                        continue
+                    seen_ids.add(job_id)
+
+                    results.append({
+                        "text": text.strip(),
+                        "job_id": job_id,
+                        "href": href,
+                    })
+                except Exception:
+                    continue
+
+            if skipped_no_id:
+                logger.warning("scraper_cards_missing_job_id", count=skipped_no_id, selector=selector)
+            if results:
+                return results
 
         logger.info("scraper_no_card_selectors_matched")
         return []
