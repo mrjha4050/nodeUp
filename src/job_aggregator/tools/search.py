@@ -15,7 +15,6 @@ from src.job_aggregator.services.aggregator import JobAggregatorService
 
 logger = get_logger(__name__)
 
-
 def register_search_tools(mcp: FastMCP, service: JobAggregatorService) -> None:
     """Register search-related tools on the MCP server."""
 
