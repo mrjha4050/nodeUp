@@ -157,16 +157,23 @@ class TestGetJobDetailsTool:
 class TestHealthCheckTool:
 
     @pytest.mark.asyncio
-    async def test_healthy_response(self) -> None:
+    async def test_healthy_response(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            "src.job_aggregator.tools.health._check_for_update", AsyncMock(return_value=None)
+        )
         mcp, _, _ = _build_tools()
         health_fn = _get_tool_fn(mcp, "health_check")
 
         result = await health_fn()
         assert result["status"] == "healthy"
         assert "mock" in result["providers"]
+        assert result["update_check"] is None
 
     @pytest.mark.asyncio
-    async def test_provider_down(self) -> None:
+    async def test_provider_down(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            "src.job_aggregator.tools.health._check_for_update", AsyncMock(return_value=None)
+        )
         registry = ProviderRegistry()
         registry.register(MockProvider(name="down", should_fail=True))
 
@@ -186,7 +193,10 @@ class TestHealthCheckTool:
 class TestGetServerConfigTool:
 
     @pytest.mark.asyncio
-    async def test_config_response(self) -> None:
+    async def test_config_response(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            "src.job_aggregator.tools.health._check_for_update", AsyncMock(return_value=None)
+        )
         mcp, _, _ = _build_tools()
         config_fn = _get_tool_fn(mcp, "get_server_config")
 
@@ -195,3 +205,87 @@ class TestGetServerConfigTool:
         assert "version" in result
         assert "registered_providers" in result
         assert "mock" in result["registered_providers"]
+        assert "update_check" in result
+
+
+# ------------------------------------------------------------------
+# _check_for_update
+# ------------------------------------------------------------------
+
+class TestCheckForUpdate:
+
+    @pytest.mark.asyncio
+    async def test_update_available(self, monkeypatch) -> None:
+        from src.job_aggregator.tools.health import _check_for_update
+
+        class _FakeResponse:
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> dict:
+                return {"tag_name": "v0.2.0"}
+
+        class _FakeClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def get(self, *args, **kwargs) -> _FakeResponse:
+                return _FakeResponse()
+
+        monkeypatch.setattr("src.job_aggregator.tools.health.httpx.AsyncClient", lambda **kw: _FakeClient())
+
+        result = await _check_for_update("0.1.0")
+        assert result == {
+            "current_version": "0.1.0",
+            "latest_version": "0.2.0",
+            "update_available": True,
+            "release_url": "https://github.com/mrjha4050/nodeUp/releases/tag/v0.2.0",
+        }
+
+    @pytest.mark.asyncio
+    async def test_up_to_date(self, monkeypatch) -> None:
+        from src.job_aggregator.tools.health import _check_for_update
+
+        class _FakeResponse:
+            def raise_for_status(self) -> None:
+                pass
+
+            def json(self) -> dict:
+                return {"tag_name": "v0.1.0"}
+
+        class _FakeClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def get(self, *args, **kwargs) -> _FakeResponse:
+                return _FakeResponse()
+
+        monkeypatch.setattr("src.job_aggregator.tools.health.httpx.AsyncClient", lambda **kw: _FakeClient())
+
+        result = await _check_for_update("0.1.0")
+        assert result["update_available"] is False
+
+    @pytest.mark.asyncio
+    async def test_network_failure_returns_none(self, monkeypatch) -> None:
+        from src.job_aggregator.tools.health import _check_for_update
+
+        class _FakeClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            async def get(self, *args, **kwargs):
+                raise ConnectionError("offline")
+
+        monkeypatch.setattr("src.job_aggregator.tools.health.httpx.AsyncClient", lambda **kw: _FakeClient())
+
+        result = await _check_for_update("0.1.0")
+        assert result is None
