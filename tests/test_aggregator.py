@@ -125,6 +125,20 @@ class TestAggregatorJobDetails:
         result = await service.get_job_details("crash_123")
         assert result is None
 
+    @pytest.mark.asyncio
+    async def test_routes_to_provider_whose_name_contains_underscore(self) -> None:
+        """Regression test: job_id prefixes can't be split on the first '_'
+        alone when the provider's own name contains one (e.g. 'linkedin_browser').
+        """
+        job = make_job(id="linkedin_browser_123", title="Test", company="X", location="Y")
+        reg = ProviderRegistry()
+        reg.register(MockProvider(name="linkedin_browser", jobs=[job]))
+
+        service = JobAggregatorService(reg)
+        result = await service.get_job_details("linkedin_browser_123")
+        assert result is not None
+        assert result.id == "linkedin_browser_123"
+
 
 class TestExtractProviderName:
 

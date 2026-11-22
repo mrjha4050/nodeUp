@@ -104,6 +104,17 @@ class JobAggregatorService:
         provider = self._registry.get(provider_name)
 
         if provider is None:
+            # Provider names can themselves contain underscores (e.g.
+            # "linkedin_browser"), which the naive first-underscore split
+            # above can't account for. Fall back to matching the job_id
+            # prefix against actually-registered provider names.
+            for name in sorted(self._registry.list_names(), key=len, reverse=True):
+                if job_id.startswith(f"{name}_"):
+                    provider_name = name
+                    provider = self._registry.get(name)
+                    break
+
+        if provider is None:
             logger.warning("aggregator_provider_not_found", job_id=job_id, provider=provider_name)
             return None
 

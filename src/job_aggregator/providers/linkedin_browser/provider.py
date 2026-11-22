@@ -85,11 +85,21 @@ class LinkedInBrowserProvider(JobProvider):
                 jobs_parsed=len(jobs),
             )
 
+            # LinkedIn periodically redesigns the results list markup so that
+            # no selector matches any card at all. Rather than silently
+            # reporting zero results, fall back to the raw page text (same
+            # degradation pattern as the people-search tools) so the caller
+            # still gets real job info to read.
+            description = None
+            if not jobs and raw.get("text"):
+                description = raw["text"]
+
             return ProviderResponse(
                 provider_name=self.provider_name,
                 jobs=jobs,
                 total_results=len(jobs),
                 success=True,
+                description=description,
             )
 
         except LinkedInBrowserError as exc:
