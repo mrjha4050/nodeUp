@@ -610,12 +610,14 @@ class TestPersonProviderMethods:
             mock_scrape.return_value = {
                 "url": "https://linkedin.com/search/results/people/",
                 "sections": {"results": "Jane Doe"},
+                "profiles": [{"username": "janedoe", "url": "https://www.linkedin.com/in/janedoe/"}],
             }
 
             result = await provider.search_people("engineer", network=["F"])
 
             assert result["success"] is True
             assert "results" in result["sections"]
+            assert result["profiles"][0]["username"] == "janedoe"
 
     @pytest.mark.asyncio
     async def test_get_my_profile_success(self, provider, mock_browser_manager) -> None:
@@ -666,3 +668,59 @@ class TestPersonProviderMethods:
 
             assert result["success"] is True
             assert result["status"] == "pending"
+
+
+# ------------------------------------------------------------------
+# Scraper: profile-link extraction from raw anchor hrefs
+# ------------------------------------------------------------------
+
+class TestDedupeConsecutiveProfileLinks:
+    """LinkedIn's people-search cards have no stable CSS hook, but each
+    result's name renders as two back-to-back anchors sharing the same
+    href, while unrelated 'mutual connections' mentions interleaved
+    between results link elsewhere without repeating consecutively.
+    """
+
+    def test_extracts_only_consecutive_duplicate_pairs(self) -> None:
+        hrefs = [
+            "https://www.linkedin.com/in/alice-123/",
+            "https://www.linkedin.com/in/alice-123/",
+            "https://www.linkedin.com/in/mutual-noise/",
+            "https://www.linkedin.com/in/bob-456/",
+            "https://www.linkedin.com/in/bob-456/",
+            "https://www.linkedin.com/in/mutual-noise/",
+            "https://www.linkedin.com/in/other-noise/",
+        ]
+        result = LinkedInScraper._dedupe_consecutive_profile_links(hrefs)
+        assert result == [
+            {"username": "alice-123", "url": "https://www.linkedin.com/in/alice-123/"},
+            {"username": "bob-456", "url": "https://www.linkedin.com/in/bob-456/"},
+        ]
+
+    def test_no_consecutive_pairs_returns_empty(self) -> None:
+        hrefs = [
+            "https://www.linkedin.com/in/alice/",
+            "https://www.linkedin.com/in/bob/",
+            "https://www.linkedin.com/in/carol/",
+        ]
+        assert LinkedInScraper._dedupe_consecutive_profile_links(hrefs) == []
+
+    def test_strips_query_string_from_url(self) -> None:
+        hrefs = [
+            "https://www.linkedin.com/in/alice-123/?miniProfileUrn=foo",
+            "https://www.linkedin.com/in/alice-123/?miniProfileUrn=foo",
+        ]
+        result = LinkedInScraper._dedupe_consecutive_profile_links(hrefs)
+        assert result == [{"username": "alice-123", "url": "https://www.linkedin.com/in/alice-123/"}]
+
+    def test_deduplicates_repeated_pairs(self) -> None:
+        hrefs = [
+            "https://www.linkedin.com/in/alice/",
+            "https://www.linkedin.com/in/alice/",
+            "https://www.linkedin.com/in/bob/",
+            "https://www.linkedin.com/in/alice/",
+            "https://www.linkedin.com/in/alice/",
+        ]
+        result = LinkedInScraper._dedupe_consecutive_profile_links(hrefs)
+        assert len(result) == 1
+        assert result[0]["username"] == "alice"

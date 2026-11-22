@@ -519,10 +519,47 @@ class LinkedInScraper:
 
         await self._scroll_page(scroll_count=3)
         text = _clean_text(await self._extract_main_text())
+        hrefs = await self._page.evaluate(
+            "() => Array.from(document.querySelectorAll(\"a[href*='/in/']\"))"
+            ".map(a => a.getAttribute('href') || '')"
+        )
+        profiles = self._dedupe_consecutive_profile_links(hrefs)
         return {
             "url": url,
             "sections": {"results": text},
+            "profiles": profiles,
         }
+
+    @staticmethod
+    def _dedupe_consecutive_profile_links(hrefs: list[str]) -> list[dict]:
+        """Extract real search-result profile links from a raw anchor href list.
+
+        LinkedIn renders each result's name as two adjacent anchors sharing
+        the same href (a card-overlay link + a name link), while "mutual
+        connections" mentions interleaved between results link to other
+        profiles but never repeat back-to-back. Keeping only consecutive
+        duplicate hrefs filters out that noise without needing any CSS
+        selector — which is what makes this survive LinkedIn's layout
+        changes better than a class-based card selector would.
+        """
+        results: list[dict] = []
+        seen: set[str] = set()
+        i = 0
+        while i < len(hrefs) - 1:
+            if hrefs[i] and hrefs[i] == hrefs[i + 1]:
+                href = hrefs[i]
+                if href not in seen:
+                    seen.add(href)
+                    match = re.search(r"/in/([^/?#]+)", href)
+                    if match:
+                        results.append({
+                            "username": match.group(1),
+                            "url": href.split("?")[0].split("#")[0],
+                        })
+                i += 2
+            else:
+                i += 1
+        return results
 
     async def scrape_sidebar_profiles(self, linkedin_username: str) -> dict:
         """Extract sidebar recommendation profile links from a profile page."""

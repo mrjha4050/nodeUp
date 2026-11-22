@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib
 import json
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -22,7 +23,6 @@ EXPECTED_TOOLS = frozenset({
     "get_job_details",
     "get_my_profile",
     "get_person_profile",
-    "get_server_config",
     "get_sidebar_profiles",
     "health_check",
     "search_jobs",
@@ -32,6 +32,7 @@ EXPECTED_TOOLS = frozenset({
 REMOVED_TOOL_NAMES = frozenset({
     "search_profiles",
     "send_connection",
+    "get_server_config",
 })
 
 REMOVED_MODULE_PREFIXES = (
@@ -54,11 +55,19 @@ class TestServerSanity:
         assert tool_names.isdisjoint(REMOVED_TOOL_NAMES)
 
     @pytest.mark.asyncio
-    async def test_only_linkedin_browser_provider_registered(self) -> None:
+    async def test_only_linkedin_browser_provider_registered(self, monkeypatch) -> None:
+        from src.job_aggregator.providers.linkedin_browser.provider import LinkedInBrowserProvider
+
+        monkeypatch.setattr(
+            "src.job_aggregator.tools.health._check_for_update", AsyncMock(return_value=None)
+        )
+        monkeypatch.setattr(
+            LinkedInBrowserProvider, "health_check", AsyncMock(return_value=True)
+        )
         mcp = create_server()
-        config_fn = mcp._tool_manager._tools["get_server_config"].fn
-        config = await config_fn()
-        assert config["registered_providers"] == ["linkedin_browser"]
+        health_fn = mcp._tool_manager._tools["health_check"].fn
+        result = await health_fn()
+        assert list(result["providers"].keys()) == ["linkedin_browser"]
 
     def test_tool_registration_exports(self) -> None:
         from src.job_aggregator.tools import (

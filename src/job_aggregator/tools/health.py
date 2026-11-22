@@ -84,21 +84,3 @@ def register_health_tools(mcp: FastMCP, registry: ProviderRegistry) -> None:
                 "status": "unhealthy",
                 "error": str(exc),
             }
-
-    @mcp.tool()
-    async def get_server_config() -> dict:
-        """Return the current server configuration (non-sensitive fields only).
-
-        Useful for debugging connection and environment issues.
-        """
-        settings = get_settings()
-        logger.info("config_requested")
-
-        return {
-            "app_name": settings.app_name,
-            "environment": settings.app_env.value,
-            "log_level": settings.log_level,
-            "version": settings.version,
-            "registered_providers": registry.list_names(),
-            "update_check": await _check_for_update(settings.version),
-        }

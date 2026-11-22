@@ -57,10 +57,6 @@
     {
       "name": "health_check",
       "description": "Check server status and which job providers are online"
-    },
-    {
-      "name": "get_server_config",
-      "description": "View current server configuration (non-sensitive fields)"
     }
   ],
   "user_config": {

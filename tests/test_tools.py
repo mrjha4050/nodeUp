@@ -187,28 +187,6 @@ class TestHealthCheckTool:
 
 
 # ------------------------------------------------------------------
-# get_server_config tool
-# ------------------------------------------------------------------
-
-class TestGetServerConfigTool:
-
-    @pytest.mark.asyncio
-    async def test_config_response(self, monkeypatch) -> None:
-        monkeypatch.setattr(
-            "src.job_aggregator.tools.health._check_for_update", AsyncMock(return_value=None)
-        )
-        mcp, _, _ = _build_tools()
-        config_fn = _get_tool_fn(mcp, "get_server_config")
-
-        result = await config_fn()
-        assert "app_name" in result
-        assert "version" in result
-        assert "registered_providers" in result
-        assert "mock" in result["registered_providers"]
-        assert "update_check" in result
-
-
-# ------------------------------------------------------------------
 # _check_for_update
 # ------------------------------------------------------------------
 

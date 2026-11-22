@@ -191,11 +191,10 @@ Once connected, your AI assistant has these tools:
 | `get_job_details` | Get full details for a job by ID (e.g., `linkedin_browser_4433918896`) |
 | `get_person_profile` | Scrape a LinkedIn profile and optional detail sections |
 | `get_my_profile` | Scrape the authenticated user's own LinkedIn profile |
-| `search_people` | Search LinkedIn people and return raw page text for parsing |
+| `search_people` | Search LinkedIn people — returns raw page text plus a structured `profiles` list ({username, url}) ready to pass to the tools below |
 | `get_sidebar_profiles` | Extract sidebar recommendation profile links from a profile page |
 | `connect_with_person` | Send a LinkedIn connection request with an optional note |
-| `health_check` | Check server status and which providers are online |
-| `get_server_config` | View current server configuration |
+| `health_check` | Check server status, which providers are online, and whether a newer version is available |
 
 ### Example prompts
 

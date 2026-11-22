@@ -68,6 +68,13 @@ def register_person_tools(mcp: FastMCP, registry: ProviderRegistry) -> None:
     ) -> dict:
         """Search for people on LinkedIn.
 
+        Returns both readable result text (sections.results) and a
+        structured `profiles` list of {username, url} for each result,
+        in the same order they appear on the page — use a profile's
+        `username` directly with get_person_profile, get_my_profile's
+        sibling tools, or connect_with_person. Don't guess a username
+        from a display name; always take it from `profiles`.
+
         Args:
             keywords: Search keywords (e.g., "software engineer", "recruiter at Google")
             location: Optional location filter (e.g., "New York", "Remote")
